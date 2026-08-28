@@ -1,0 +1,12 @@
+{
+  "codeowners": ["@ketracel"],
+  "config_flow": true,
+  "documentation": "https://github.com/ketracel/77_DOTFILES/tree/main/homeassistant/package_fast",
+  "dependencies": ["camera"],
+  "domain": "package_fast",
+  "iot_class": "local_polling",
+  "name": "Package Fast",
+  "requirements": ["Pillow"],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

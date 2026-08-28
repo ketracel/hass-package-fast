@@ -1,0 +1,36 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Only one Package Fast instance is allowed."
+    },
+    "step": {
+      "user": {
+        "description": "Create the local Package Fast detector. It has no credentials and starts with frame persistence off.",
+        "title": "Package Fast"
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "armed_below_idle": "The armed rate must be at least the idle rate."
+    },
+    "step": {
+      "init": {
+        "data": {
+          "armed_rate_hz": "Armed poll rate",
+          "camera_entity": "Package camera",
+          "idle_rate_hz": "Idle poll rate",
+          "mask_hits": "Shadow hits before masking",
+          "mask_iou_threshold": "Same-region IoU threshold",
+          "mask_ttl_hours": "Mask decay time",
+          "mask_window_hours": "Repeated-flicker window",
+          "max_age_days": "Frame maximum age",
+          "max_storage_mb": "Frame storage cap",
+          "persist_frames": "Persist sparse frames (P2-PRIV must pass first)"
+        },
+        "description": "Frame persistence is privacy-gated and defaults off. Do not enable it until every P2-PRIV check in the repository README has passed.",
+        "title": "Package Fast options"
+      }
+    }
+  }
+}
