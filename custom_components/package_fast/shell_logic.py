@@ -191,6 +191,7 @@ class _SLOSample:
 @dataclass(frozen=True, slots=True)
 class SLOSnapshot:
     sample_count: int
+    fetch_p50_ms: float
     fetch_p95_ms: float
     poll_gap_count: int
     duplicate_count: int
@@ -265,6 +266,7 @@ class SlidingSLOMonitor:
     def snapshot(self) -> SLOSnapshot:
         samples = tuple(self._samples)
         count = len(samples)
+        fetch_p50 = percentile((sample.fetch_ms for sample in samples), 0.50)
         fetch_p95 = percentile((sample.fetch_ms for sample in samples), 0.95)
         armed_count = sum(sample.armed for sample in samples)
         gap_count = sum(
@@ -320,6 +322,7 @@ class SlidingSLOMonitor:
 
         return SLOSnapshot(
             sample_count=count,
+            fetch_p50_ms=fetch_p50,
             fetch_p95_ms=fetch_p95,
             poll_gap_count=gap_count,
             duplicate_count=duplicate_count,

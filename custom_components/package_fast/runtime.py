@@ -19,6 +19,7 @@ from homeassistant.components import camera
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
@@ -80,6 +81,15 @@ from .core import (
     SignalEnvelope,
 )
 from .core.journal import REDUCER_VERSION, load_records, reduce_records
+from .paging import (
+    HEALTH_DEFAULT_LIMIT,
+    HEALTH_MAX_LIMIT,
+    JOURNAL_DEFAULT_LIMIT,
+    SUSPENSION_HISTORY_LIMIT,
+    clamp_limit,
+    read_journal_page,
+    redact_source,
+)
 from .shell_logic import (
     FeedSuspectMonitor,
     SLOLimits,
@@ -168,7 +178,7 @@ class _PendingSolCall:
 
 
 class _DetectorBackend:
-    """All blocking core/disk work, serialized behind one executor lock."""
+    """Serialize detector mutation and writes while keeping file reads lock-free."""
 
     def __init__(
         self,
@@ -785,6 +795,105 @@ class _DetectorBackend:
         with self._lock:
             return self._public_snapshot(_utc_now(), "starting")
 
+    def read_journal(
+        self,
+        *,
+        since_seq: int | None = None,
+        episode_id: str | None = None,
+        limit: int = JOURNAL_DEFAULT_LIMIT,
+    ) -> dict[str, Any]:
+        """Read one append-safe journal page without blocking frame processing."""
+
+        try:
+            return read_journal_page(
+                self.journal.path,
+                since_seq=since_seq,
+                episode_id=episode_id,
+                limit=limit,
+            )
+        except (OSError, TypeError, ValueError) as error:
+            raise HomeAssistantError(
+                f"Unable to read package-fast journal: {error}"
+            ) from error
+
+    def read_health(
+        self, *, limit: int = HEALTH_DEFAULT_LIMIT
+    ) -> dict[str, Any]:
+        """Read current diagnostics without pruning or recomputing state."""
+
+        try:
+            note_limit = clamp_limit(
+                limit, default=HEALTH_DEFAULT_LIMIT, maximum=HEALTH_MAX_LIMIT
+            )
+            # The append-safe disk snapshot must never contend with process().
+            (
+                notes,
+                suspensions,
+                skipped,
+                suspensions_complete,
+            ) = self.state_store.read_health(
+                note_limit=note_limit, suspension_limit=SUSPENSION_HISTORY_LIMIT
+            )
+        except (OSError, TypeError, ValueError) as error:
+            raise HomeAssistantError(
+                f"Unable to read package-fast health: {error}"
+            ) from error
+
+        now_ms = int(time.time() * 1_000)
+        # Only copy mutable in-memory state while holding the detector lock.
+        with self._lock:
+            mask_state = self.mask_policy.to_state()
+            mask_ttl_ms = self.mask_policy.ttl_ms
+            mask_hits_required = self.mask_policy.hits_required
+            detector_state = self.detector.state.value
+            suspension_reason = self.detector.suspension_reason
+            slo = self._last_slo
+            latest_slo = {
+                "sample_count": slo.sample_count,
+                "fetch_p50_ms": round(slo.fetch_p50_ms, 3),
+                "fetch_p95_ms": round(slo.fetch_p95_ms, 3),
+                "distinct_fps": slo.distinct_fps,
+                "error_rate": slo.error_rate,
+                "poll_gaps": slo.poll_gap_count,
+                "poll_gap_rate": slo.gap_rate,
+                "qualified": slo.qualified,
+                "healthy": slo.healthy,
+                "violations": list(slo.violations),
+            }
+
+        masks: list[dict[str, Any]] = []
+        for value in mask_state.get("active", []):
+            try:
+                bbox = [float(part) for part in value["bbox"]]
+                expires_ms = int(value["expires_ms"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if len(bbox) != 4 or expires_ms <= now_ms:
+                continue
+            created_ms = expires_ms - mask_ttl_ms
+            masks.append(
+                {
+                    "bbox_norm": bbox,
+                    "created_at": datetime.fromtimestamp(
+                        created_ms / 1_000.0, tz=timezone.utc
+                    ).isoformat(timespec="milliseconds"),
+                    "hit_count": mask_hits_required,
+                    "ttl_remaining_seconds": round(
+                        (expires_ms - now_ms) / 1_000.0, 3
+                    ),
+                }
+            )
+        return {
+            "state": detector_state,
+            "suspension_reason": suspension_reason,
+            "recent_suspensions": suspensions,
+            "recent_suspensions_complete": suspensions_complete,
+            "active_suppression_masks": masks,
+            "latest_slo": latest_slo,
+            "health_notes": notes,
+            "health_notes_skipped": skipped,
+        }
+
     def process(self, item: _WorkItem) -> _Outcome:
         with self._lock:
             self._roll_date(item.at_wall)
@@ -1047,11 +1156,13 @@ class _DetectorBackend:
             self._metrics["system_log_warnings"] = int(
                 self._metrics.get("system_log_warnings", 0)
             ) + 1
-            summary = {
+            summary: dict[str, str] = {
                 key: str(data[key])[:1_024]
-                for key in ("level", "name", "message", "source")
+                for key in ("level", "name", "message")
                 if key in data
             }
+            if "source" in data:
+                summary["source"] = redact_source(data["source"])
             self._append_health("system_log", at_wall, at_mono_ms, summary)
             self._flush_metrics()
             status = "degraded" if self.detector.state == DetectorState.SUSPENDED else "ok"

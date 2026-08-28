@@ -31,9 +31,11 @@ CONF_MASK_WINDOW_HOURS = "mask_window_hours"
 CONF_MASK_TTL_HOURS = "mask_ttl_hours"
 CONF_MASK_IOU = "mask_iou_threshold"
 
+# HA's nightly backup includes /media, so this spool stays short-lived while
+# the durable archive lives in the package-detection corpus on razorback.
 DEFAULT_PERSIST_FRAMES = False
-DEFAULT_MAX_STORAGE_MB = 1_536
-DEFAULT_MAX_AGE_DAYS = 21
+DEFAULT_MAX_STORAGE_MB = 256
+DEFAULT_MAX_AGE_DAYS = 3
 DEFAULT_MASK_HITS = 3
 DEFAULT_MASK_WINDOW_HOURS = 24.0
 DEFAULT_MASK_TTL_HOURS = 24.0
@@ -67,4 +69,4 @@ STARTUP_STABILIZATION_SECONDS = 60.0
 SOL_JOIN_MAX_SECONDS = 10.0 * 60.0
 MEDIA_ROOT = "/media/package_fast"
 
-INTEGRATION_VERSION = "0.1.0"
+INTEGRATION_VERSION = "0.2.1"

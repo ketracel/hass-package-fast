@@ -49,6 +49,7 @@ The shell lives in `custom_components/package_fast/`:
 - a 60-second cold-start stabilization interval at idle cadence; person edges during that interval are discarded, then any currently active person state is re-seeded before fast decisions resume;
 - 30-second projection cadence for heartbeat/fetch/cpu and the other polling metrics, avoiding per-frame recorder churn while state transitions and durable results still publish immediately;
 - canonical per-episode poll-gap counts in each `episode_closed.poll` block, plus ERR-11 `system_log`/blocking-call observations in the noncanonical `/media/package_fast/metrics/health.jsonl` soak journal;
+- admin-gated `package_fast/journal` and `package_fast/health` WebSocket commands for authenticated journal export and diagnosis, with every disk read dispatched to the executor;
 - passive shadow-phase joining of the existing early/final Sol decisions: per-lane call-counter edges infer the lane, `input_text.package_detection_last_decision` supplies the result, and a timestamp match commits `sol_result` to the open or newest recent episode; and
 - independent daily HA-start and interrupted-episode counters, clean `homeassistant_stop` teardown, and shadow publication of any `interrupted_restart` closure recovered at startup.
 
@@ -63,6 +64,15 @@ Public entities are:
 
 `input_boolean.package_fast_promoted` is deliberately external control-plane state, not created or toggled by this integration. Missing/off means shadow-only.
 
+## Authenticated read surfaces
+
+Version 0.2.1 provides two read-only WebSocket commands. Both require an authenticated Home Assistant administrator, accept no filesystem path or media identifier, and read only the configured runtime's own store:
+
+- `package_fast/journal` accepts optional `since_seq`, optional `episode_id`, and `limit` (default 500, maximum 5,000). Each call examines at most `limit` physical candidates after the cursor and returns the matching, structurally valid additive ERR-07 envelopes plus `next_seq`, `truncated`, and `skipped`. Because envelope `seq` restarts per episode, `since_seq`/`next_seq` are an exclusive file-order cursor; each returned envelope keeps its per-episode `seq` unchanged. Unknown record types and schema versions are returned when their envelope structure is valid. A malformed complete line increments `skipped` and blocks the cursor at that line instead of consuming it.
+- `package_fast/health` accepts only an optional bounded health-note `limit`. It returns current FSM/suspension state, up to 50 suspension reasons found in the bounded recent-note window (with `recent_suspensions_complete` saying whether that bounded scan reached the full requested history), active suppression masks with normalized boxes/creation times/hit counts/remaining TTL, the latest fetch/freshness/error/poll-gap SLO snapshot, and the requested tail of health notes. `system_log` sources are reduced to `basename:lineno`; messages remain third-party diagnostic text and are truncated when captured.
+
+Neither command prunes masks, invokes the journal reducer, rewrites derived files, or exposes a caller-selected path. Both readers snapshot the file size, ignore any non-newline-terminated append, and do bounded page/tail work without taking the detector's per-frame lock. JSON journal/health data travels over the authenticated WebSocket; sparse JPEGs remain on Home Assistant's authenticated local-media path for export. Boolean limits are rejected, and both schemas enforce their hard maxima before dispatching to the executor.
+
 ## ERR-08 privacy gate and retention
 
 `persist_frames` ships **false**. Journal records, derived metrics, health notes, and entities continue regardless, but no camera frame bytes are written until the owner explicitly changes the option. Before doing so, P2-PRIV must pass in full:
@@ -71,7 +81,7 @@ Public entities are:
 2. the owner records the remote-access posture and verifies every remote media route requires HA authentication; and
 3. backup scope is established; if `/media` enters an off-LAN backup, exclude `/media/package_fast/` or obtain explicit owner sign-off.
 
-When enabled after that gate, the shell stores baseline, first-seen, confirm, decision crop, per-trip, and final frames under `episodes/YYYY/MM/DD/<episode_id>/`. Defaults are 1.5 GB and 21 days. Pruning is oldest-first; an episode directory containing a `keep` marker is exempt. If only exempt/fixed data remains at the cap, the write is skipped and counted instead of deleting labeled media or suspending the detector. A missing frame-cache entry is handled the same way. Only a distinct real filesystem failure takes the fatal suspension path.
+When enabled after that gate, the shell stores baseline, first-seen, confirm, decision crop, per-trip, and final frames under `episodes/YYYY/MM/DD/<episode_id>/`. Defaults are 256 MB and 3 days: HA's nightly backup includes `/media`, so this is deliberately a short-lived spool while `package_eval.py export-shadow` archives it in the corpus on razorback. Pruning is oldest-first; an episode directory containing a `keep` marker is exempt. If only exempt/fixed data remains at the cap, the write is skipped and counted instead of deleting labeled media or suspending the detector. A missing frame-cache entry is handled the same way. Only a distinct real filesystem failure takes the fatal suspension path.
 
 ## Modules
 
@@ -83,6 +93,8 @@ When enabled after that gate, the shell stores baseline, first-seen, confirm, de
 - `custom_components/package_fast/shell_logic.py` contains HA-free SLO, retention, suppression-mask, feed-suspect, and system-log filtering policy.
 - `custom_components/package_fast/runtime.py` owns the HA listeners, bounded poller/worker, executor boundary, durable event publication, metrics, and clean unload.
 - `custom_components/package_fast/storage.py` owns sparse frame/crop writes, `keep`-aware retention, daily metrics, health notes, and restart-persistent suppression policy.
+- `custom_components/package_fast/paging.py` defines HA-free, bounded JSONL paging, health-tail redaction, and the lossless journal cursor.
+- `custom_components/package_fast/websocket.py` registers the two admin-gated read commands and dispatches their disk work to the executor.
 - `tests/synth.py` provides fixed-seed 480×360 scenes, parcels, couriers, soft shadows, illumination changes, IR flips, camera shifts, and sub-threshold sensor variation.
 - `tests/test_scenarios.py` is the complete S1–S14 sequence suite; the other test modules pin primitives, FSM boundaries, journal failure behavior, shell policies, and vendored-core parity.
 

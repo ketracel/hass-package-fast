@@ -13,6 +13,7 @@ from typing import Any, Callable, Mapping
 
 from PIL import Image
 
+from .paging import read_health_tail
 from .shell_logic import RetentionEntry, plan_retention
 
 
@@ -362,6 +363,20 @@ class ShellStateStore:
             handle.flush()
             os.fsync(handle.fileno())
         return len(content)
+
+    def read_health(
+        self, *, note_limit: int, suspension_limit: int
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]], int, bool]:
+        """Read bounded health-note and suspension tails without changing state."""
+
+        try:
+            return read_health_tail(
+                self.health_path,
+                note_limit=note_limit,
+                suspension_limit=suspension_limit,
+            )
+        except OSError:
+            return [], [], 0, True
 
     def load_masks(self) -> dict[str, Any]:
         try:

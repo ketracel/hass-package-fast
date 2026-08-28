@@ -24,10 +24,21 @@ def _import_runtime():
     return PackageFastRuntime
 
 
+def _import_websocket_registration():
+    """Import the HA-coupled WebSocket module outside the event loop."""
+
+    from .websocket import async_register_commands
+
+    return async_register_commands
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up one package-fast config entry."""
 
     PackageFastRuntime = await hass.async_add_import_executor_job(_import_runtime)
+    async_register_commands = await hass.async_add_import_executor_job(
+        _import_websocket_registration
+    )
     runtime = await PackageFastRuntime.async_create(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
@@ -35,6 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         await runtime.async_start()
+        async_register_commands(hass)
     except Exception:
         await runtime.async_stop(close_episode=False)
         hass.data[DOMAIN].pop(entry.entry_id, None)

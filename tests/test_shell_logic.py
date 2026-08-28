@@ -471,8 +471,9 @@ class PackagingContractTests(unittest.TestCase):
         self.assertEqual(config.idle_rate_hz, 0.5)
         self.assertEqual(config.armed_rate_hz, 2.0)
         self.assertFalse(DEFAULT_PERSIST_FRAMES)
-        self.assertEqual(DEFAULT_MAX_STORAGE_MB, 1_536)
-        self.assertEqual(DEFAULT_MAX_AGE_DAYS, 21)
+        # HA's nightly backup includes /media; razorback holds the archive.
+        self.assertEqual(DEFAULT_MAX_STORAGE_MB, 256)
+        self.assertEqual(DEFAULT_MAX_AGE_DAYS, 3)
 
     def test_n2_phase_zero_slo_constants_are_pinned(self):
         config = DetectorConfig()
