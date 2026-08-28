@@ -477,7 +477,9 @@ class PackagingContractTests(unittest.TestCase):
     def test_n2_phase_zero_slo_constants_are_pinned(self):
         config = DetectorConfig()
         self.assertEqual(FETCH_P95_LIMIT_MS, 900.0)
-        self.assertEqual(MIN_DISTINCT_FPS, 1.5)
+        # Phase-0 measured ~1.0 distinct FPS on 2026-08-27/28; 0.8 preserves margin.
+        self.assertEqual(MIN_DISTINCT_FPS, 0.8)
+        self.assertEqual(SLOLimits().minimum_distinct_fps, 0.8)
         self.assertEqual(MAX_ERROR_RATE, 0.005)
         self.assertEqual(POLL_GAP_LIMIT_MS, 1_500.0)
         self.assertEqual(config.poll_gap_seconds, 1.5)

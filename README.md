@@ -52,6 +52,8 @@ The shell lives in `custom_components/package_fast/`:
 - passive shadow-phase joining of the existing early/final Sol decisions: per-lane call-counter edges infer the lane, `input_text.package_detection_last_decision` supplies the result, and a timestamp match commits `sol_result` to the open or newest recent episode; and
 - independent daily HA-start and interrupted-episode counters, clean `homeassistant_stop` teardown, and shadow publication of any `interrupted_restart` closure recovered at startup.
 
+The 0.8 distinct-fps freshness floor is Phase-0-seeded from the snapshot path's measured ~1.0 distinct frame/s; the camera attribute's 2 FPS is not what that path delivers.
+
 Public entities are:
 
 - `binary_sensor.package_fast_deposit` — momentary view of the latest durable deposit result;

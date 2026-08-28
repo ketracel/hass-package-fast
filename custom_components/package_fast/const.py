@@ -42,7 +42,8 @@ DEFAULT_MASK_IOU = 0.5
 # Phase-0 qualification envelope (CONVERGED + ERR-06).
 FETCH_P95_LIMIT_MS = 900.0
 POLL_GAP_LIMIT_MS = 1_500.0
-MIN_DISTINCT_FPS = 1.5
+# Phase-0 measured ~1.0 distinct FPS on 2026-08-27/28; threshold = measured - margin.
+MIN_DISTINCT_FPS = 0.8
 MAX_ERROR_RATE = 0.005
 MAX_GAP_RATE = 0.005
 SLO_WINDOW_SECONDS = 120.0

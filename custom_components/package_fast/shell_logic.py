@@ -151,7 +151,8 @@ class SLOLimits:
 
     fetch_p95_limit_ms: float = 900.0
     poll_gap_limit_ms: float = 1_500.0
-    minimum_distinct_fps: float = 1.5
+    # Phase-0 measured ~1.0 distinct FPS on 2026-08-27/28; threshold = measured - margin.
+    minimum_distinct_fps: float = 0.8
     maximum_error_rate: float = 0.005
     maximum_gap_rate: float = 0.005
     window_ms: int = 120_000
