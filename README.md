@@ -40,6 +40,7 @@ The HACS payload contains a byte-identical vendored copy of `core/` because HACS
 
 The shell lives in `custom_components/package_fast/`:
 
+- background poller/worker tasks owned by the config entry, excluded from Home Assistant's startup wait (0.2.3);
 - one bounded frame slot and one sequential fetch → executor decode/`step()`/`commit()` → sleep loop; fetches never overlap or accumulate;
 - `camera.async_get_image` with a one-second budget and exactly one retry;
 - state-edge envelopes from both person binary sensors and the package-detection master;

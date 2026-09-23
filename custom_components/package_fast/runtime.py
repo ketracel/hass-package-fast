@@ -1719,11 +1719,12 @@ class PackageFastRuntime:
             "master_on" if self._effective_on() else "master_off",
             entity_id=MASTER_ENTITY,
         )
-        self._worker_task = self.hass.async_create_task(
-            self._worker_loop(), "package_fast frame worker"
+        # Perpetual loops must not keep HA's startup task barrier waiting.
+        self._worker_task = self.entry.async_create_background_task(
+            self.hass, self._worker_loop(), "package_fast frame worker"
         )
-        self._poll_task = self.hass.async_create_task(
-            self._poll_loop(), "package_fast sequential poller"
+        self._poll_task = self.entry.async_create_background_task(
+            self.hass, self._poll_loop(), "package_fast sequential poller"
         )
 
     async def async_set_enabled(self, enabled: bool) -> None:

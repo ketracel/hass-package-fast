@@ -110,6 +110,18 @@ class ShellBoundaryTests(unittest.TestCase):
             start.index("_resample_state_inputs"),
         )
 
+    def test_perpetual_loops_do_not_join_the_home_assistant_startup_barrier(self):
+        tree = ast.parse(runtime_method_source("async_start"))
+        launches = [node for node in ast.walk(tree)
+                    if isinstance(node, ast.Call)
+                    and any(isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute)
+                            and arg.func.attr in {"_worker_loop", "_poll_loop"}
+                            for arg in node.args)]
+        self.assertEqual(len(launches), 2)
+        for launch in launches:
+            self.assertEqual(launch.func.attr, "async_create_background_task")
+            self.assertEqual(launch.func.value.attr, "entry")
+
     def test_n7_n8_n10_n12_runtime_wiring_is_canonical_and_shutdown_safe(self):
         prepare = runtime_method_source("_prepare_journal_records")
         sol = runtime_method_source("record_sol_decision")
