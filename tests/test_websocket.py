@@ -423,11 +423,11 @@ class WebSocketContractTests(unittest.TestCase):
         self.assertEqual(len(disk_reads), 1)
         self.assertNotIn(disk_reads[0], locked_nodes)
 
-    def test_manifest_and_runtime_version_are_0_2_1(self):
+    def test_manifest_and_runtime_version_are_0_2_2(self):
         manifest = (COMPONENT_ROOT / "manifest.json").read_text(encoding="utf-8")
         constants = (COMPONENT_ROOT / "const.py").read_text(encoding="utf-8")
-        self.assertIn('"version": "0.2.1"', manifest)
-        self.assertIn('INTEGRATION_VERSION = "0.2.1"', constants)
+        self.assertIn('"version": "0.2.2"', manifest)
+        self.assertIn('INTEGRATION_VERSION = "0.2.2"', constants)
 
     def test_reserved_diagnostics_module_was_renamed(self):
         self.assertFalse((COMPONENT_ROOT / "diagnostics.py").exists())

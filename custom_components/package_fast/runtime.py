@@ -463,6 +463,18 @@ class _DetectorBackend:
             return None
         value = self._frame_cache.get(frame_id)
         if value is None:
+            # Quiet/disturbance baselines can outlive the recent raw-frame cache.
+            # Use only the exact original selected for this step's opened record.
+            baseline = self.detector.baseline_frame(frame_id)
+            if baseline is not None and baseline.jpeg_bytes is not None:
+                value = SparseFrame(
+                    frame_id=baseline.frame_id,
+                    at_wall=baseline.at_wall,
+                    at_mono_ms=baseline.at_mono_ms,
+                    sha256=baseline.sha256,
+                    jpeg_bytes=baseline.jpeg_bytes,
+                )
+        if value is None:
             return None
         if bbox is None:
             return value

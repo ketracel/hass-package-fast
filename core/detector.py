@@ -119,6 +119,7 @@ class Detector:
         self._rolling_baseline: _QuietFrame | None = None
         self._episode_baseline: _QuietFrame | None = None
         self._disturbance_baseline: _QuietFrame | None = None
+        self._step_baselines: dict[str, FrameEnvelope] = {}
         self._tracker = StationarityTracker(self.config)
 
         self._last_received_mono_ms: int | None = None
@@ -179,6 +180,15 @@ class Detector:
         baseline = self._episode_baseline or self._rolling_baseline
         return baseline.envelope.sha256 if baseline is not None else None
 
+    def baseline_frame(self, frame_id: str) -> FrameEnvelope | None:
+        """Original baseline selected by the last step, valid until the next step.
+
+        The shell persists that step's durable records before calling step again.
+        Keep this handoff separate from mutable episode/rebase state: a close or
+        rebase in the same batch must not discard an opened record's evidence.
+        """
+        return self._step_baselines.get(frame_id)
+
     def _transition(self, state: DetectorState) -> None:
         if self.state != state:
             self.state = state
@@ -211,6 +221,7 @@ class Detector:
     ) -> list[DetectionEnvelope]:
         """Advance the detector once and return non-durable staged records."""
 
+        self._step_baselines.clear()
         staged: list[DetectionEnvelope] = []
         self.frames_received += 1
 
@@ -449,6 +460,7 @@ class Detector:
         baseline_payload: dict[str, Any] | None = None
         if self._episode_baseline is not None:
             envelope = self._episode_baseline.envelope
+            self._step_baselines[envelope.frame_id] = envelope
             baseline_payload = {
                 "frame_ids": [envelope.frame_id],
                 "sha256": envelope.sha256,
